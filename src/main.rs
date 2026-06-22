@@ -1,7 +1,7 @@
-use std::f64::consts::TAU;
+use std::f32::consts::{FRAC_PI_2, PI, TAU};
 
 use colorous::RAINBOW;
-use egui::Color32;
+use egui::{Color32, NumExt};
 use egui_plot::{GridMark, Line, Plot, Points, Polygon};
 
 const POINT_SIZE: f32 = 12.0;
@@ -66,8 +66,64 @@ fn main() -> eframe::Result {
             });
 
             let mut reset_view = false;
-            egui::Panel::top("top_panel").show_inside(ui, |ui| {
+            egui::Panel::bottom("bottom_panel").show_inside(ui, |ui| {
                 ui.horizontal(|ui| {
+                    let input_button = egui::containers::menu::MenuButton::new("Input").config(
+                        egui::containers::menu::MenuConfig::new()
+                            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
+                    );
+                    input_button.ui(ui, |ui| {
+                        let size = ui.content_rect().size().min_elem() * 0.25;
+                        let (response, painter) =
+                            ui.allocate_painter(egui::vec2(size, size), egui::Sense::click());
+                        let rect = response.rect;
+                        let c = rect.center();
+                        let r = rect.width() * 0.5;
+                        let r1 = r / 3.0;
+                        let r2 = r;
+                        let hovered_index = response
+                            .hover_pos()
+                            .map(|pos| pos - c)
+                            .filter(|v| (r1..r2).contains(&v.length()))
+                            .map(|v| {
+                                (((v.angle() / TAU) + 1.25) * n as f32 + 0.5).floor() as usize % n
+                            });
+                        for i in 0..n {
+                            let angle1 = (TAU + angle(i, n) - PI / n as f32) % TAU;
+                            let angle2 = (TAU + angle(i + 1, n) - PI / n as f32) % TAU;
+                            let is_hovered = hovered_index == Some(i);
+                            let steps = (100 / n).at_least(2);
+                            let shape = egui::Shape::convex_polygon(
+                                std::iter::chain(
+                                    (0..=steps)
+                                        .map(|k| k as f32 / steps as f32)
+                                        .map(|t| angle1 + t * TAU / n as f32)
+                                        .map(|angle| {
+                                            c + r1 * egui::Vec2::angled(angle - FRAC_PI_2)
+                                        }),
+                                    (0..=steps)
+                                        .map(|k| k as f32 / steps as f32)
+                                        .map(|t| angle2 - t * TAU / n as f32)
+                                        .map(|angle| {
+                                            c + r2 * egui::Vec2::angled(angle - FRAC_PI_2)
+                                        }),
+                                )
+                                .collect(),
+                                color(i, n).gamma_multiply(if is_hovered { 1.0 } else { 0.5 }),
+                                egui::Stroke::NONE,
+                            );
+                            painter.add(shape);
+
+                            if response.clicked() && is_hovered {
+                                reflect(&mut points, i);
+                                undo_stack.push(i);
+                                redo_stack.clear();
+                            }
+                        }
+                    });
+
+                    ui.separator();
+
                     ui.add(
                         egui::Slider::new(&mut n, 3..=26).clamping(egui::SliderClamping::Always),
                     );
@@ -181,8 +237,8 @@ fn main() -> eframe::Result {
                                     points[(i + 1) % n],
                                 ],
                             )
-                            .stroke((LINE_WIDTH, Color32::WHITE))
-                            .style(egui_plot::LineStyle::Dotted { spacing: 24.0 }),
+                            .stroke((LINE_WIDTH / 2.0, Color32::WHITE))
+                            .style(egui_plot::LineStyle::Dotted { spacing: 8.0 }),
                         );
                         plot_ui.add(
                             Points::new("", reflected(&points, i))
@@ -219,7 +275,7 @@ fn main() -> eframe::Result {
 
 fn init(points: &mut Vec<[f64; 2]>, n: usize) {
     *points = (0..n)
-        .map(|i| (TAU * i as f64 / n as f64).sin_cos())
+        .map(|i| (angle(i, n) as f64).sin_cos())
         .map(|(x, y)| [x, y])
         .collect();
 }
@@ -239,6 +295,10 @@ fn reflected(points: &[[f64; 2]], i: usize) -> [f64; 2] {
 fn color(i: usize, n: usize) -> Color32 {
     let [r, g, b] = RAINBOW.eval_rational(i, n).into_array();
     Color32::from_rgb(r, g, b)
+}
+
+fn angle(i: usize, n: usize) -> f32 {
+    (i as f32 / n as f32) * TAU
 }
 
 fn name(i: usize) -> char {
