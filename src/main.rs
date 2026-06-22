@@ -61,23 +61,40 @@ fn main() -> eframe::Result {
 
             let mut reset_view = false;
             egui::Panel::top("top_panel").show_inside(ui, |ui| {
-                ui.add(egui::Slider::new(&mut n, 3..=21).clamping(egui::SliderClamping::Never));
-                if n < 3 {
-                    n = 3;
-                }
+                ui.horizontal(|ui| {
+                    ui.add(
+                        egui::Slider::new(&mut n, 3..=26).clamping(egui::SliderClamping::Always),
+                    );
 
-                if ui.button("Reset").clicked() {
-                    points.clear();
-                }
+                    if ui.button("Reset points").clicked() {
+                        points.clear();
+                    }
 
-                reset_view = ui.button("Reset view").clicked();
+                    ui.separator();
+
+                    reset_view = ui.button("Reset view").clicked();
+
+                    ui.separator();
+
+                    ui.add(egui::Label::new("History:").selectable(false));
+                    let mut s = undo_stack.iter().map(|&i| name(i)).collect::<String>();
+                    if ui.add(egui::TextEdit::singleline(&mut s)).changed() {
+                        init(&mut points, n);
+                        undo_stack.clear();
+                        redo_stack.clear();
+                        for c in s.chars() {
+                            if ('A'..='Z').contains(&c) {
+                                let i = c as usize - 'A' as usize;
+                                reflect(&mut points, i);
+                                undo_stack.push(i);
+                            }
+                        }
+                    }
+                });
             });
 
             if points.len() != n {
-                points = (0..n)
-                    .map(|i| (TAU * i as f64 / n as f64).sin_cos())
-                    .map(|(x, y)| [x, y])
-                    .collect();
+                init(&mut points, n);
                 undo_stack.clear();
                 redo_stack.clear();
             }
@@ -170,6 +187,13 @@ fn main() -> eframe::Result {
             });
         },
     )
+}
+
+fn init(points: &mut Vec<[f64; 2]>, n: usize) {
+    *points = (0..n)
+        .map(|i| (TAU * i as f64 / n as f64).sin_cos())
+        .map(|(x, y)| [x, y])
+        .collect();
 }
 
 fn reflect(points: &mut Vec<[f64; 2]>, i: usize) {
