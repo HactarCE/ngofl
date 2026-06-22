@@ -32,6 +32,8 @@ mod shortcuts {
 }
 
 fn main() -> eframe::Result {
+    let mut first_frame = true;
+
     let mut undo_stack = vec![];
     let mut redo_stack = vec![];
 
@@ -41,6 +43,10 @@ fn main() -> eframe::Result {
         "N-gon Flip Puzzle",
         Default::default(),
         move |ui, _frame| {
+            if std::mem::take(&mut first_frame) {
+                ui.ctx().set_zoom_factor(1.5);
+            }
+
             ui.input_mut(|input| {
                 if input.consume_shortcut(&shortcuts::CMD_R) {
                     points.clear();
