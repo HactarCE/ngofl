@@ -10,28 +10,77 @@ const HOVERED_OUTLINE_WIDTH: f32 = 2.0;
 const HOVER_DISTANCE: f32 = 10.0;
 const LINE_WIDTH: f32 = 3.0;
 
+mod shortcuts {
+    use egui::{Key, KeyboardShortcut, Modifiers};
+
+    pub const CMD_Z: KeyboardShortcut = KeyboardShortcut {
+        modifiers: Modifiers::COMMAND,
+        logical_key: Key::Z,
+    };
+    pub const CMD_SHIFT_Z: KeyboardShortcut = KeyboardShortcut {
+        modifiers: Modifiers::COMMAND.plus(Modifiers::SHIFT),
+        logical_key: Key::Z,
+    };
+    pub const CMD_Y: KeyboardShortcut = KeyboardShortcut {
+        modifiers: Modifiers::COMMAND,
+        logical_key: Key::Y,
+    };
+    pub const CMD_R: KeyboardShortcut = KeyboardShortcut {
+        modifiers: Modifiers::COMMAND,
+        logical_key: Key::R,
+    };
+}
+
 fn main() -> eframe::Result {
+    let mut undo_stack = vec![];
+    let mut redo_stack = vec![];
+
     let mut n = 7;
     let mut points = vec![];
     eframe::run_ui_native(
         "N-gon Flip Puzzle",
         Default::default(),
         move |ui, _frame| {
-            let mut reset = false;
+            ui.input_mut(|input| {
+                if input.consume_shortcut(&shortcuts::CMD_R) {
+                    points.clear();
+                } else if input.consume_shortcut(&shortcuts::CMD_SHIFT_Z)
+                    || input.consume_shortcut(&shortcuts::CMD_Y)
+                {
+                    if let Some(i) = redo_stack.pop() {
+                        reflect(&mut points, i);
+                        undo_stack.push(i);
+                    }
+                } else if input.consume_shortcut(&shortcuts::CMD_Z) {
+                    if let Some(i) = undo_stack.pop() {
+                        reflect(&mut points, i);
+                        redo_stack.push(i);
+                    }
+                }
+            });
+
+            let mut reset_view = false;
             egui::Panel::top("top_panel").show_inside(ui, |ui| {
                 ui.add(egui::Slider::new(&mut n, 3..=21).clamping(egui::SliderClamping::Never));
                 if n < 3 {
                     n = 3;
                 }
-                if points.len() != n {
-                    points = (0..n)
-                        .map(|i| (TAU * i as f64 / n as f64).sin_cos())
-                        .map(|(x, y)| [x, y])
-                        .collect();
+
+                if ui.button("Reset").clicked() {
+                    points.clear();
                 }
 
-                reset = ui.button("Reset camera").clicked();
+                reset_view = ui.button("Reset view").clicked();
             });
+
+            if points.len() != n {
+                points = (0..n)
+                    .map(|i| (TAU * i as f64 / n as f64).sin_cos())
+                    .map(|(x, y)| [x, y])
+                    .collect();
+                undo_stack.clear();
+                redo_stack.clear();
+            }
 
             egui::CentralPanel::default().show_inside(ui, |ui| {
                 let mut plot = Plot::new("main")
@@ -41,8 +90,9 @@ fn main() -> eframe::Result {
                     .show_crosshair(false)
                     .allow_boxed_zoom(false);
 
-                if reset {
+                if reset_view {
                     plot = plot.reset();
+                    undo_stack.clear();
                 }
 
                 let mut hovered_point = None;
@@ -114,6 +164,8 @@ fn main() -> eframe::Result {
                     && r.response.clicked()
                 {
                     reflect(&mut points, i);
+                    undo_stack.push(i);
+                    redo_stack.clear();
                 }
             });
         },
