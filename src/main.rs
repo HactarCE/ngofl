@@ -2,7 +2,7 @@ use std::f64::consts::TAU;
 
 use colorous::RAINBOW;
 use egui::Color32;
-use egui_plot::{Line, Plot, Points, Polygon};
+use egui_plot::{GridMark, Line, Plot, Points, Polygon};
 
 const POINT_SIZE: f32 = 12.0;
 const HOVERED_POINT_SIZE: f32 = 16.0;
@@ -106,7 +106,20 @@ fn main() -> eframe::Result {
                     .default_y_bounds(-2.0, 2.0)
                     .default_x_bounds(-2.0, 2.0)
                     .show_crosshair(false)
-                    .allow_boxed_zoom(false);
+                    .allow_boxed_zoom(false)
+                    .show_axes(false)
+                    .x_grid_spacer(|_| {
+                        vec![GridMark {
+                            value: 0.0,
+                            step_size: 1.0,
+                        }]
+                    })
+                    .y_grid_spacer(|_| {
+                        vec![GridMark {
+                            value: 0.0,
+                            step_size: 1.0,
+                        }]
+                    });
 
                 if reset_view {
                     plot = plot.reset();
