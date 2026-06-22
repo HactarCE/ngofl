@@ -90,8 +90,16 @@ fn main() -> eframe::Result {
                         redo_stack.clear();
                         for c in s.chars() {
                             let c = c.to_ascii_uppercase();
-                            if ('A'..='Z').contains(&c) {
-                                let i = c as usize - 'A' as usize;
+                            let i = if c.is_ascii_alphabetic() {
+                                Some(c as usize - 'A' as usize)
+                            } else if c == '0' {
+                                Some(9)
+                            } else if c.is_ascii_digit() {
+                                Some(c as usize - '1' as usize)
+                            } else {
+                                None
+                            };
+                            if let Some(i) = i {
                                 reflect(&mut points, i);
                                 undo_stack.push(i);
                             }
