@@ -4,6 +4,7 @@ use colorous::RAINBOW;
 use egui::{Color32, NumExt};
 use egui_plot::{GridMark, Line, Plot, Points, Polygon};
 
+const TITLE: &str = "N-gon Flip Puzzle";
 const DEFAULT_ZOOM: f32 = 1.5;
 const POINT_SIZE: f32 = 12.0;
 const HOVERED_POINT_SIZE: f32 = 16.0;
@@ -35,7 +36,7 @@ mod shortcuts {
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result {
     eframe::run_native(
-        "N-gon Flip Puzzle",
+        TITLE,
         Default::default(),
         Box::new(|cc| Ok(Box::new(App::new(cc)))),
     )
@@ -123,8 +124,35 @@ impl eframe::App for App {
             }
         });
 
+        egui::Panel::bottom("credits_panel").show_inside(ui, |ui| {
+            ui.spacing_mut().scroll = egui::style::ScrollStyle::solid();
+            ui.spacing_mut().scroll.bar_width /= 1.5;
+            ui.spacing_mut().scroll.bar_inner_margin = 0.0;
+            let sp = std::mem::take(&mut ui.spacing_mut().item_spacing);
+            ui.horizontal(|ui| {
+                egui::ScrollArea::horizontal()
+                    .id_salt("bottom_bar")
+                    .auto_shrink(false)
+                    .show(ui, |ui| {
+                        show_credits(ui);
+                        ui.add_space(sp.x);
+                        ui.separator();
+                        ui.add_space(sp.x);
+                        show_powered_by_egui(ui);
+                        ui.add_space(sp.x);
+                        ui.separator();
+                        ui.add_space(sp.x);
+                        show_source_code_link(ui);
+                    });
+            });
+        });
+
         let mut reset_view = false;
-        egui::Panel::bottom("bottom_panel").show_inside(ui, |ui| {
+        let mut frame = egui::Frame::side_top_panel(ui.style());
+        frame.inner_margin.top = 6;
+        frame.inner_margin.bottom = 6;
+        let bottom_panel = egui::Panel::bottom("bottom_panel").frame(frame);
+        bottom_panel.show_inside(ui, |ui| {
             ui.horizontal(|ui| {
                 let input_button = egui::containers::menu::MenuButton::new("Input").config(
                     egui::containers::menu::MenuConfig::new()
@@ -365,4 +393,26 @@ fn angle(i: usize, n: usize) -> f32 {
 
 fn name(i: usize) -> char {
     ('A' as u8 + i as u8) as char
+}
+
+fn show_credits(ui: &mut egui::Ui) {
+    ui.label(format!("{TITLE} v{} by ", env!("CARGO_PKG_VERSION")));
+    ui.hyperlink_to("Andrew Farkas", "https://ajfarkas.dev/");
+}
+
+fn show_powered_by_egui(ui: &mut egui::Ui) {
+    ui.label("Powered by ");
+    ui.hyperlink_to("egui", "https://github.com/emilk/egui");
+    ui.label(" and ");
+    ui.hyperlink_to(
+        "eframe",
+        "https://github.com/emilk/egui/tree/master/crates/eframe",
+    );
+}
+
+fn show_source_code_link(ui: &mut egui::Ui) {
+    ui.hyperlink_to(
+        egui::RichText::new(" source code").small(),
+        env!("CARGO_PKG_REPOSITORY"),
+    );
 }
