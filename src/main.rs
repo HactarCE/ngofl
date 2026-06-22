@@ -106,6 +106,8 @@ impl Default for App {
 
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let fg_color = ui.visuals().strong_text_color();
+
         ui.input_mut(|input| {
             if input.consume_shortcut(&shortcuts::CMD_R) {
                 self.points.clear();
@@ -266,7 +268,8 @@ impl eframe::App for App {
                         value: 0.0,
                         step_size: 1.0,
                     }]
-                });
+                })
+                .allow_scroll(false);
 
             if reset_view {
                 plot = plot.reset();
@@ -292,7 +295,7 @@ impl eframe::App for App {
                 // Draw lines
                 plot_ui.add(
                     Polygon::new("", self.points.clone())
-                        .stroke((LINE_WIDTH, Color32::WHITE))
+                        .stroke((LINE_WIDTH, fg_color))
                         .fill_color(Color32::TRANSPARENT),
                 );
 
@@ -316,7 +319,7 @@ impl eframe::App for App {
                                 self.points[(i + 1) % n],
                             ],
                         )
-                        .stroke((LINE_WIDTH / 2.0, Color32::WHITE))
+                        .stroke((LINE_WIDTH / 2.0, fg_color))
                         .style(egui_plot::LineStyle::Dotted { spacing: 8.0 }),
                     );
                     plot_ui.add(
@@ -330,7 +333,7 @@ impl eframe::App for App {
                 for (i, xy) in self.points.iter_mut().enumerate() {
                     let r = if hovered_point == Some(i) {
                         let r = HOVERED_POINT_SIZE + HOVERED_OUTLINE_WIDTH;
-                        plot_ui.add(Points::new("", *xy).radius(r).color(Color32::WHITE));
+                        plot_ui.add(Points::new("", *xy).radius(r).color(fg_color));
                         HOVERED_POINT_SIZE
                     } else {
                         POINT_SIZE
