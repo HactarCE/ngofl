@@ -83,6 +83,7 @@ fn main() -> eframe::Result {
                         undo_stack.clear();
                         redo_stack.clear();
                         for c in s.chars() {
+                            let c = c.to_ascii_uppercase();
                             if ('A'..='Z').contains(&c) {
                                 let i = c as usize - 'A' as usize;
                                 reflect(&mut points, i);
