@@ -331,18 +331,20 @@ impl App {
                 let angle2 = (TAU + angle(i + 1, n) - PI / n as f32) % TAU;
                 let is_hovered = hovered_index == Some(i);
                 let steps = (100 / n).at_least(2);
+                let mut polygon_points = std::iter::chain(
+                    (0..=steps)
+                        .map(|k| k as f32 / steps as f32)
+                        .map(|t| angle1 + t * TAU / n as f32)
+                        .map(|angle| c + r1 * egui::Vec2::angled(angle - FRAC_PI_2)),
+                    (0..=steps)
+                        .map(|k| k as f32 / steps as f32)
+                        .map(|t| angle2 - t * TAU / n as f32)
+                        .map(|angle| c + r2 * egui::Vec2::angled(angle - FRAC_PI_2)),
+                )
+                .collect::<Vec<_>>();
+                polygon_points.rotate_right(steps / 2); // fix graphical glitches due to concave polygon
                 let shape = egui::Shape::convex_polygon(
-                    std::iter::chain(
-                        (0..=steps)
-                            .map(|k| k as f32 / steps as f32)
-                            .map(|t| angle1 + t * TAU / n as f32)
-                            .map(|angle| c + r1 * egui::Vec2::angled(angle - FRAC_PI_2)),
-                        (0..=steps)
-                            .map(|k| k as f32 / steps as f32)
-                            .map(|t| angle2 - t * TAU / n as f32)
-                            .map(|angle| c + r2 * egui::Vec2::angled(angle - FRAC_PI_2)),
-                    )
-                    .collect(),
+                    polygon_points,
                     color(i, n).gamma_multiply(if is_hovered { 1.0 } else { 0.5 }),
                     egui::Stroke::NONE,
                 );
