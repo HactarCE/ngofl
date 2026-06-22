@@ -269,7 +269,8 @@ impl eframe::App for App {
                         step_size: 1.0,
                     }]
                 })
-                .allow_scroll(false);
+                .allow_scroll(false)
+                .allow_double_click_reset(false);
 
             if reset_view {
                 plot = plot.reset();
