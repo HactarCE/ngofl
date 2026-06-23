@@ -93,6 +93,9 @@ struct App {
 
     n: usize,
     points: Vec<[f64; 2]>,
+
+    hovered_index: Option<usize>,
+    is_input_tool_hovered: bool,
 }
 
 impl Default for App {
@@ -105,6 +108,9 @@ impl Default for App {
 
             n: 7,
             points: vec![],
+
+            hovered_index: None,
+            is_input_tool_hovered: false,
         }
     }
 }
@@ -203,22 +209,22 @@ impl eframe::App for App {
                 plot = plot.reset();
             }
 
-            let mut hovered_point = None;
             let r = plot.show(ui, |plot_ui| {
                 let n = self.n;
 
                 // Get hovered point
-                hovered_point = plot_ui.pointer_coordinate().and_then(|hov| {
-                    self.points
+                if !self.is_input_tool_hovered
+                    && let Some(hov) = plot_ui.pointer_coordinate()
+                    && let Some((i, dist)) = self
+                        .points
                         .iter()
                         .map(|&[x, y]| egui::pos2(x as f32, y as f32).distance_sq(hov.to_pos2()))
                         .enumerate()
                         .min_by(|(_, a), (_, b)| a.total_cmp(b))
-                        .filter(|(_, dist)| {
-                            plot_ui.transform().dpos_dvalue_x() as f32 * *dist < HOVER_DISTANCE
-                        })
-                        .map(|(i, _)| i)
-                });
+                    && plot_ui.transform().dpos_dvalue_x() as f32 * dist < HOVER_DISTANCE
+                {
+                    self.hovered_index = Some(i);
+                }
 
                 // Draw lines
                 plot_ui.add(
@@ -227,7 +233,7 @@ impl eframe::App for App {
                         .fill_color(Color32::TRANSPARENT),
                 );
 
-                if let Some(i) = hovered_point {
+                if let Some(i) = self.hovered_index {
                     // Draw reflecting line
                     plot_ui.add(
                         Line::new(
@@ -259,7 +265,7 @@ impl eframe::App for App {
 
                 // Draw points
                 for (i, xy) in self.points.iter_mut().enumerate() {
-                    let r = if hovered_point == Some(i) {
+                    let r = if self.hovered_index == Some(i) {
                         let r = HOVERED_POINT_SIZE + HOVERED_OUTLINE_WIDTH;
                         plot_ui.add(Points::new("", *xy).radius(r).color(fg_color));
                         HOVERED_POINT_SIZE
@@ -271,11 +277,13 @@ impl eframe::App for App {
             });
 
             // Update point
-            if let Some(i) = hovered_point
+            if let Some(i) = self.hovered_index
                 && r.response.clicked()
             {
                 self.do_move(i);
             }
+
+            self.hovered_index = None;
         });
     }
 }
@@ -358,7 +366,9 @@ impl App {
     }
 
     fn show_input_tool(&mut self, ui: &mut egui::Ui) {
+        self.is_input_tool_hovered = false;
         let mut is_open = self.show_input_tool;
+
         let mut frame = egui::Frame::window(ui.style());
         frame.fill = Color32::TRANSPARENT;
         let window = egui::Window::new("Input")
@@ -372,21 +382,25 @@ impl App {
         window.show(ui, |ui| {
             let n = self.n;
             let (response, painter) =
-                ui.allocate_painter(ui.available_size(), egui::Sense::click());
+                ui.allocate_painter(ui.available_size(), egui::Sense::click_and_drag());
             let rect = response.rect;
             let c = rect.center();
             let r = rect.size().min_elem() * 0.5;
             let r1 = r / 3.0;
             let r2 = r;
-            let hovered_index = response
-                .hover_pos()
-                .map(|pos| pos - c)
-                .filter(|v| (r1..r2).contains(&v.length()))
-                .map(|v| (((v.angle() / TAU) + 1.25) * n as f32 + 0.5).floor() as usize % n);
+            if response.hovered() {
+                self.is_input_tool_hovered = true;
+                self.hovered_index = response
+                    .hover_pos()
+                    .or(response.interact_pointer_pos())
+                    .map(|pos| pos - c)
+                    .filter(|v| (r1..r2).contains(&v.length()))
+                    .map(|v| (((v.angle() / TAU) + 1.25) * n as f32 + 0.5).floor() as usize % n);
+            }
             for i in 0..n {
                 let angle1 = (TAU + angle(i, n) - PI / n as f32) % TAU;
                 let angle2 = (TAU + angle(i + 1, n) - PI / n as f32) % TAU;
-                let is_hovered = hovered_index == Some(i);
+                let is_hovered = self.hovered_index == Some(i);
                 let steps = (100 / n).at_least(2);
                 let mut polygon_points = std::iter::chain(
                     (0..=steps)
