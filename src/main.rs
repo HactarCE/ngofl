@@ -431,7 +431,10 @@ impl App {
     fn show_history(&mut self, ui: &mut egui::Ui) {
         ui.add(egui::Label::new("History:").selectable(false));
         let mut s = self.undo_stack.iter().map(|&i| name(i)).collect::<String>();
-        if ui.add(egui::TextEdit::singleline(&mut s)).changed() {
+        if ui
+            .add(egui::TextEdit::singleline(&mut s).desired_width(ui.available_width()))
+            .changed()
+        {
             self.init();
             for c in s.chars() {
                 let c = c.to_ascii_uppercase();
