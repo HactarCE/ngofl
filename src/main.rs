@@ -332,7 +332,6 @@ impl App {
 
         if ui.button("Reset points").clicked() {
             self.reset();
-            reset_view = true;
         }
 
         ui.separator();
