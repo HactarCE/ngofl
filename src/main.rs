@@ -304,13 +304,17 @@ impl App {
     }
 
     fn reflect(&mut self, i: usize) {
-        self.points[i] = self.reflected_point(i);
+        if i < self.n {
+            self.points[i] = self.reflected_point(i);
+        }
     }
 
     fn do_move(&mut self, i: usize) {
-        self.reflect(i);
-        self.undo_stack.push(i);
-        self.redo_stack.clear();
+        if i < self.n {
+            self.reflect(i);
+            self.undo_stack.push(i);
+            self.redo_stack.clear();
+        }
     }
 
     fn reflected_point(&self, i: usize) -> [f64; 2] {
