@@ -1,8 +1,12 @@
-use std::f32::consts::{FRAC_PI_2, PI, TAU};
+use std::{
+    f32::consts::{FRAC_PI_2, PI, TAU},
+    hash::{Hash, Hasher},
+};
 
 use colorous::RAINBOW;
 use egui::{Color32, NumExt};
 use egui_plot::{GridMark, Line, Plot, Points, Polygon};
+use rand::{RngExt, SeedableRng, seq::SliceRandom};
 
 const TITLE: &str = "N-gon Flip Puzzle";
 const DEFAULT_ZOOM: f32 = 1.0;
@@ -92,6 +96,7 @@ struct App {
     redo_stack: Vec<usize>,
 
     n: usize,
+    init_points: Vec<[f64; 2]>,
     points: Vec<[f64; 2]>,
 
     hovered_index: Option<usize>,
@@ -106,6 +111,7 @@ impl Default for App {
             redo_stack: vec![],
 
             n: 7,
+            init_points: vec![],
             points: vec![],
 
             hovered_index: None,
@@ -238,7 +244,7 @@ impl eframe::App for App {
                             "",
                             vec![self.points[(i + n - 1) % n], self.points[(i + 1) % n]],
                         )
-                        .stroke((LINE_WIDTH / 2.0, color(i, n))),
+                        .stroke((LINE_WIDTH / 4.0, color(i, n))),
                     );
 
                     // Draw new edges & new point
@@ -292,13 +298,18 @@ impl App {
         Self::default()
     }
 
-    fn reset(&mut self) {
+    fn init(&mut self) {
         self.undo_stack.clear();
         self.redo_stack.clear();
-        self.points = (0..self.n)
+        self.points = self.init_points.clone();
+    }
+
+    fn reset(&mut self) {
+        self.init_points = (0..self.n)
             .map(|i| (angle(i, self.n) as f64).sin_cos())
             .map(|(x, y)| [x, y])
             .collect();
+        self.init();
     }
 
     fn reflect(&mut self, i: usize) {
@@ -340,6 +351,34 @@ impl App {
 
         reset_view |= ui.button("Reset view").clicked();
 
+        ui.separator();
+
+        if ui.button("Scramble").clicked() {
+            let mut h = std::hash::DefaultHasher::new();
+            web_time::Instant::now().hash(&mut h);
+            let bytes = h.finish().to_ne_bytes();
+            let mut rng = rand::rngs::StdRng::from_seed(
+                [bytes; 4]
+                    .as_flattened()
+                    .try_into()
+                    .expect("error casting [[u8; 8]; 4] to [u8; 32]"),
+            );
+
+            let mut vectors = (0..self.n - 1)
+                .map(|i| vector_i(i + 1, self.n).yx() - vector_i(i, self.n).yx())
+                .collect::<Vec<_>>();
+            vectors.shuffle(&mut rng);
+            let starting_index = rng.random_range(0..self.n);
+            let mut p = vector_i(starting_index, self.n).yx();
+            self.init_points = vec![[p.x as f64, p.y as f64]];
+            for v in vectors {
+                p += v;
+                self.init_points.push([p.x as f64, p.y as f64]);
+            }
+            self.init_points.rotate_right(starting_index);
+            self.points = self.init_points.clone();
+        }
+
         reset_view
     }
 
@@ -347,7 +386,7 @@ impl App {
         ui.add(egui::Label::new("History:").selectable(false));
         let mut s = self.undo_stack.iter().map(|&i| name(i)).collect::<String>();
         if ui.add(egui::TextEdit::singleline(&mut s)).changed() {
-            self.reset();
+            self.init();
             for c in s.chars() {
                 let c = c.to_ascii_uppercase();
                 let i = if c.is_ascii_alphabetic() {
@@ -435,6 +474,10 @@ fn color(i: usize, n: usize) -> Color32 {
 
 fn angle(i: usize, n: usize) -> f32 {
     (i as f32 / n as f32) * TAU
+}
+
+fn vector_i(i: usize, n: usize) -> egui::Vec2 {
+    egui::Vec2::angled(angle(i, n))
 }
 
 fn name(i: usize) -> char {

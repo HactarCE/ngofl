@@ -8,6 +8,8 @@ colorous = "1.0.16"
 eframe = "0.34.3"
 egui = "0.34.3"
 egui_plot = "0.35.0"
+rand = { version = "0.10.1", default-features = false, features = ["std_rng"] }
+web-time = "1.1.0"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-futures = "0.4.50"
