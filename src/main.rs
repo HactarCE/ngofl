@@ -10,7 +10,7 @@ const POINT_SIZE: f32 = 12.0;
 const HOVERED_POINT_SIZE: f32 = 16.0;
 const HOVERED_OUTLINE_WIDTH: f32 = 2.0;
 const HOVER_DISTANCE: f32 = 10.0;
-const LINE_WIDTH: f32 = 3.0;
+const LINE_WIDTH: f32 = 4.0;
 
 mod shortcuts {
     use egui::{Key, KeyboardShortcut, Modifiers};
@@ -95,7 +95,6 @@ struct App {
     points: Vec<[f64; 2]>,
 
     hovered_index: Option<usize>,
-    is_input_tool_hovered: bool,
 }
 
 impl Default for App {
@@ -110,7 +109,6 @@ impl Default for App {
             points: vec![],
 
             hovered_index: None,
-            is_input_tool_hovered: false,
         }
     }
 }
@@ -213,7 +211,7 @@ impl eframe::App for App {
                 let n = self.n;
 
                 // Get hovered point
-                if !self.is_input_tool_hovered
+                if plot_ui.response().hovered()
                     && let Some(hov) = plot_ui.pointer_coordinate()
                     && let Some((i, dist)) = self
                         .points
@@ -240,7 +238,7 @@ impl eframe::App for App {
                             "",
                             vec![self.points[(i + n - 1) % n], self.points[(i + 1) % n]],
                         )
-                        .stroke((LINE_WIDTH, color(i, n))),
+                        .stroke((LINE_WIDTH / 2.0, color(i, n))),
                     );
 
                     // Draw new edges & new point
@@ -253,8 +251,8 @@ impl eframe::App for App {
                                 self.points[(i + 1) % n],
                             ],
                         )
-                        .stroke((LINE_WIDTH / 2.0, fg_color))
-                        .style(egui_plot::LineStyle::Dotted { spacing: 8.0 }),
+                        .stroke((LINE_WIDTH / 2.0, fg_color.gamma_multiply(0.5)))
+                        .style(egui_plot::LineStyle::Dotted { spacing: 12.0 }),
                     );
                     plot_ui.add(
                         Points::new("", self.reflected_point(i))
@@ -369,7 +367,6 @@ impl App {
     }
 
     fn show_input_tool(&mut self, ui: &mut egui::Ui) {
-        self.is_input_tool_hovered = false;
         let mut is_open = self.show_input_tool;
 
         let mut frame = egui::Frame::window(ui.style());
@@ -392,7 +389,6 @@ impl App {
             let r1 = r / 3.0;
             let r2 = r;
             if response.contains_pointer() {
-                self.is_input_tool_hovered = true;
                 self.hovered_index = ui
                     .input(|input| input.pointer.latest_pos())
                     .map(|pos| pos - c)
@@ -418,7 +414,7 @@ impl App {
                 polygon_points.rotate_right(steps / 2); // fix graphical glitches due to concave polygon
                 let shape = egui::Shape::convex_polygon(
                     polygon_points,
-                    color(i, n).gamma_multiply(if is_hovered { 1.0 } else { 0.5 }),
+                    color(i, n).gamma_multiply(if is_hovered { 1.0 } else { 0.75 }),
                     egui::Stroke::NONE,
                 );
                 painter.add(shape);
