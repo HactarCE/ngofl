@@ -382,17 +382,16 @@ impl App {
         window.show(ui, |ui| {
             let n = self.n;
             let (response, painter) =
-                ui.allocate_painter(ui.available_size(), egui::Sense::click_and_drag());
+                ui.allocate_painter(ui.available_size(), egui::Sense::click());
             let rect = response.rect;
             let c = rect.center();
             let r = rect.size().min_elem() * 0.5;
             let r1 = r / 3.0;
             let r2 = r;
-            if response.hovered() {
+            if response.contains_pointer() {
                 self.is_input_tool_hovered = true;
-                self.hovered_index = response
-                    .hover_pos()
-                    .or(response.interact_pointer_pos())
+                self.hovered_index = ui
+                    .input(|input| input.pointer.latest_pos())
                     .map(|pos| pos - c)
                     .filter(|v| (r1..r2).contains(&v.length()))
                     .map(|v| (((v.angle() / TAU) + 1.25) * n as f32 + 0.5).floor() as usize % n);
