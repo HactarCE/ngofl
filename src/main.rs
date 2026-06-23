@@ -5,7 +5,7 @@ use egui::{Color32, NumExt};
 use egui_plot::{GridMark, Line, Plot, Points, Polygon};
 
 const TITLE: &str = "N-gon Flip Puzzle";
-const DEFAULT_ZOOM: f32 = 1.5;
+const DEFAULT_ZOOM: f32 = 1.0;
 const POINT_SIZE: f32 = 12.0;
 const HOVERED_POINT_SIZE: f32 = 16.0;
 const HOVERED_OUTLINE_WIDTH: f32 = 2.0;
@@ -86,6 +86,8 @@ fn main() {
 }
 
 struct App {
+    show_input_tool: bool,
+
     undo_stack: Vec<usize>,
     redo_stack: Vec<usize>,
 
@@ -96,8 +98,11 @@ struct App {
 impl Default for App {
     fn default() -> Self {
         Self {
+            show_input_tool: false,
+
             undo_stack: vec![],
             redo_stack: vec![],
+
             n: 7,
             points: vec![],
         }
@@ -168,6 +173,10 @@ impl eframe::App for App {
         }
 
         egui::CentralPanel::default().show_inside(ui, |ui| {
+            if self.show_input_tool {
+                self.show_input_tool(ui);
+            }
+
             let mut plot = Plot::new("main")
                 .data_aspect(1.0)
                 .default_y_bounds(-2.0, 2.0)
@@ -307,54 +316,7 @@ impl App {
     fn show_controls(&mut self, ui: &mut egui::Ui) -> bool {
         let mut reset_view = false;
 
-        let input_button = egui::containers::menu::MenuButton::new("Input").config(
-            egui::containers::menu::MenuConfig::new()
-                .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside),
-        );
-        input_button.ui(ui, |ui| {
-            let n = self.n;
-            let size = ui.content_rect().size().min_elem() * 0.25;
-            let (response, painter) =
-                ui.allocate_painter(egui::vec2(size, size), egui::Sense::click());
-            let rect = response.rect;
-            let c = rect.center();
-            let r = rect.width() * 0.5;
-            let r1 = r / 3.0;
-            let r2 = r;
-            let hovered_index = response
-                .hover_pos()
-                .map(|pos| pos - c)
-                .filter(|v| (r1..r2).contains(&v.length()))
-                .map(|v| (((v.angle() / TAU) + 1.25) * n as f32 + 0.5).floor() as usize % n);
-            for i in 0..n {
-                let angle1 = (TAU + angle(i, n) - PI / n as f32) % TAU;
-                let angle2 = (TAU + angle(i + 1, n) - PI / n as f32) % TAU;
-                let is_hovered = hovered_index == Some(i);
-                let steps = (100 / n).at_least(2);
-                let mut polygon_points = std::iter::chain(
-                    (0..=steps)
-                        .map(|k| k as f32 / steps as f32)
-                        .map(|t| angle1 + t * TAU / n as f32)
-                        .map(|angle| c + r1 * egui::Vec2::angled(angle - FRAC_PI_2)),
-                    (0..=steps)
-                        .map(|k| k as f32 / steps as f32)
-                        .map(|t| angle2 - t * TAU / n as f32)
-                        .map(|angle| c + r2 * egui::Vec2::angled(angle - FRAC_PI_2)),
-                )
-                .collect::<Vec<_>>();
-                polygon_points.rotate_right(steps / 2); // fix graphical glitches due to concave polygon
-                let shape = egui::Shape::convex_polygon(
-                    polygon_points,
-                    color(i, n).gamma_multiply(if is_hovered { 1.0 } else { 0.5 }),
-                    egui::Stroke::NONE,
-                );
-                painter.add(shape);
-
-                if response.clicked() && is_hovered {
-                    self.do_move(i);
-                }
-            }
-        });
+        ui.checkbox(&mut self.show_input_tool, "Show input tool");
 
         ui.separator();
 
@@ -393,6 +355,64 @@ impl App {
                 }
             }
         }
+    }
+
+    fn show_input_tool(&mut self, ui: &mut egui::Ui) {
+        let mut is_open = self.show_input_tool;
+        let mut frame = egui::Frame::window(ui.style());
+        frame.fill = Color32::TRANSPARENT;
+        let window = egui::Window::new("Input")
+            .title_bar(false)
+            .open(&mut is_open)
+            .constrain_to(ui.max_rect())
+            .default_size(egui::Vec2::splat(
+                ui.content_rect().size().min_elem() * 0.25,
+            ))
+            .frame(frame);
+        window.show(ui, |ui| {
+            let n = self.n;
+            let (response, painter) =
+                ui.allocate_painter(ui.available_size(), egui::Sense::click());
+            let rect = response.rect;
+            let c = rect.center();
+            let r = rect.size().min_elem() * 0.5;
+            let r1 = r / 3.0;
+            let r2 = r;
+            let hovered_index = response
+                .hover_pos()
+                .map(|pos| pos - c)
+                .filter(|v| (r1..r2).contains(&v.length()))
+                .map(|v| (((v.angle() / TAU) + 1.25) * n as f32 + 0.5).floor() as usize % n);
+            for i in 0..n {
+                let angle1 = (TAU + angle(i, n) - PI / n as f32) % TAU;
+                let angle2 = (TAU + angle(i + 1, n) - PI / n as f32) % TAU;
+                let is_hovered = hovered_index == Some(i);
+                let steps = (100 / n).at_least(2);
+                let mut polygon_points = std::iter::chain(
+                    (0..=steps)
+                        .map(|k| k as f32 / steps as f32)
+                        .map(|t| angle1 + t * TAU / n as f32)
+                        .map(|angle| c + r1 * egui::Vec2::angled(angle - FRAC_PI_2)),
+                    (0..=steps)
+                        .map(|k| k as f32 / steps as f32)
+                        .map(|t| angle2 - t * TAU / n as f32)
+                        .map(|angle| c + r2 * egui::Vec2::angled(angle - FRAC_PI_2)),
+                )
+                .collect::<Vec<_>>();
+                polygon_points.rotate_right(steps / 2); // fix graphical glitches due to concave polygon
+                let shape = egui::Shape::convex_polygon(
+                    polygon_points,
+                    color(i, n).gamma_multiply(if is_hovered { 1.0 } else { 0.5 }),
+                    egui::Stroke::NONE,
+                );
+                painter.add(shape);
+
+                if response.clicked() && is_hovered {
+                    self.do_move(i);
+                }
+            }
+        });
+        self.show_input_tool = is_open;
     }
 }
 
