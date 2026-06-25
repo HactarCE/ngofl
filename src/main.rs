@@ -103,6 +103,7 @@ struct App {
 
     hovered_index: Option<usize>,
     dragged_index: Option<usize>,
+    drag_mode: bool,
 }
 
 impl Default for App {
@@ -121,6 +122,7 @@ impl Default for App {
 
             hovered_index: None,
             dragged_index: None,
+            drag_mode: false,
         }
     }
 }
@@ -171,9 +173,11 @@ impl eframe::App for App {
             });
         });
 
-        egui::Panel::bottom("history").show_inside(ui, |ui| {
-            ui.horizontal(|ui| self.show_history(ui));
-        });
+        if !self.drag_mode {
+            egui::Panel::bottom("history").show_inside(ui, |ui| {
+                ui.horizontal(|ui| self.show_history(ui));
+            });
+        }
 
         let mut reset_view = false;
         egui::Panel::bottom("controls").show_inside(ui, |ui| {
@@ -220,11 +224,13 @@ impl eframe::App for App {
             }
 
             // Get dragged point
-            if ui.input(|i| i.pointer.button_pressed(Secondary)) {
-                self.dragged_index = self.hovered_index;
-            }
-            if ui.input(|i| i.pointer.button_released(Secondary)) {
-                self.dragged_index = None;
+            if self.drag_mode {
+                if ui.input(|i| i.pointer.button_pressed(Secondary)) {
+                    self.dragged_index = self.hovered_index;
+                }
+                if ui.input(|i| i.pointer.button_released(Secondary)) {
+                    self.dragged_index = None;
+                }
             }
 
             let r = plot.show(ui, |plot_ui| {
@@ -362,8 +368,8 @@ impl App {
             let q1 = cx - ax;
             let q2 = cy - ay;
             [
-                ax + 2.0*(p1*q1 + p2*q2)/(q1.powi(2) + q2.powi(2)) * q1 - p1,
-                ay + 2.0*(p1*q1 + p2*q2)/(q1.powi(2) + q2.powi(2)) * q2 - p2
+                ax + 2.0 * (p1 * q1 + p2 * q2) / (q1.powi(2) + q2.powi(2)) * q1 - p1,
+                ay + 2.0 * (p1 * q1 + p2 * q2) / (q1.powi(2) + q2.powi(2)) * q2 - p2,
             ]
         }
     }
@@ -417,13 +423,17 @@ impl App {
         ui.separator();
 
         ui.menu_button("Reflection Type", |ui| {
-            if ui.button("Classic").clicked() {
+            if ui.button("Point Reflection").clicked() {
                 self.reflection_backend = 0;
             }
-            if ui.button("Line").clicked() {
+            if ui.button("Line Reflection").clicked() {
                 self.reflection_backend = 1;
             }
         });
+
+        ui.separator();
+
+        ui.checkbox(&mut self.drag_mode,"Enable Moving Points").on_hover_text("Move points with right click and drag.\nEnabling drag is experimental and disables history viewing.");
 
         reset_view
     }
