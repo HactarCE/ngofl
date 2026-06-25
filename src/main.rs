@@ -4,7 +4,7 @@ use std::{
 };
 
 use colorous::RAINBOW;
-use egui::{Color32, NumExt};
+use egui::{Color32, NumExt, PointerButton::Secondary};
 use egui_plot::{GridMark, Line, Plot, Points, Polygon};
 use rand::{RngExt, SeedableRng, seq::SliceRandom};
 
@@ -99,7 +99,11 @@ struct App {
     init_points: Vec<[f64; 2]>,
     points: Vec<[f64; 2]>,
 
+    reflection_backend: u8,
+
     hovered_index: Option<usize>,
+    dragged_index: Option<usize>,
+    drag_mode: bool,
 }
 
 impl Default for App {
@@ -114,7 +118,11 @@ impl Default for App {
             init_points: vec![],
             points: vec![],
 
+            reflection_backend: 0,
+
             hovered_index: None,
+            dragged_index: None,
+            drag_mode: false,
         }
     }
 }
@@ -165,9 +173,11 @@ impl eframe::App for App {
             });
         });
 
-        egui::Panel::bottom("history").show_inside(ui, |ui| {
-            ui.horizontal(|ui| self.show_history(ui));
-        });
+        if !self.drag_mode {
+            egui::Panel::bottom("history").show_inside(ui, |ui| {
+                ui.horizontal(|ui| self.show_history(ui));
+            });
+        }
 
         let mut reset_view = false;
         egui::Panel::bottom("controls").show_inside(ui, |ui| {
@@ -213,6 +223,16 @@ impl eframe::App for App {
                 plot = plot.reset();
             }
 
+            // Get dragged point
+            if self.drag_mode {
+                if ui.input(|i| i.pointer.button_pressed(Secondary)) {
+                    self.dragged_index = self.hovered_index;
+                }
+                if ui.input(|i| i.pointer.button_released(Secondary)) {
+                    self.dragged_index = None;
+                }
+            }
+
             let r = plot.show(ui, |plot_ui| {
                 let n = self.n;
 
@@ -228,6 +248,8 @@ impl eframe::App for App {
                     && plot_ui.transform().dpos_dvalue_x() as f32 * dist < HOVER_DISTANCE
                 {
                     self.hovered_index = Some(i);
+                } else if self.show_input_tool == false {
+                    self.hovered_index = None;
                 }
 
                 // Draw lines
@@ -278,6 +300,13 @@ impl eframe::App for App {
                     };
                     plot_ui.add(Points::new(name(i), *xy).radius(r).color(color(i, n)));
                 }
+
+                // Move dragged point
+                if let Some(i) = self.dragged_index {
+                    if let Some(coord) = plot_ui.pointer_coordinate() {
+                        self.points[i] = [coord.x, coord.y];
+                    }
+                }
             });
 
             // Update point
@@ -286,8 +315,6 @@ impl eframe::App for App {
             {
                 self.do_move(i);
             }
-
-            self.hovered_index = None;
         });
     }
 }
@@ -327,10 +354,24 @@ impl App {
     }
 
     fn reflected_point(&self, i: usize) -> [f64; 2] {
-        let [ax, ay] = self.points[(i + self.n - 1) % self.n];
-        let [bx, by] = self.points[i];
-        let [cx, cy] = self.points[(i + 1) % self.n];
-        [ax + cx - bx, ay + cy - by]
+        if self.reflection_backend == 0 {
+            let [ax, ay] = self.points[(i + self.n - 1) % self.n];
+            let [bx, by] = self.points[i];
+            let [cx, cy] = self.points[(i + 1) % self.n];
+            [ax + cx - bx, ay + cy - by]
+        } else {
+            let [ax, ay] = self.points[(i + self.n - 1) % self.n];
+            let [bx, by] = self.points[i];
+            let [cx, cy] = self.points[(i + 1) % self.n];
+            let p1 = bx - ax;
+            let p2 = by - ay;
+            let q1 = cx - ax;
+            let q2 = cy - ay;
+            [
+                ax + 2.0 * (p1 * q1 + p2 * q2) / (q1.powi(2) + q2.powi(2)) * q1 - p1,
+                ay + 2.0 * (p1 * q1 + p2 * q2) / (q1.powi(2) + q2.powi(2)) * q2 - p2,
+            ]
+        }
     }
 
     /// Shows control panel and returns whether to reset the view.
@@ -378,6 +419,21 @@ impl App {
             self.init_points.rotate_right(starting_index);
             self.points = self.init_points.clone();
         }
+
+        ui.separator();
+
+        ui.menu_button("Reflection Type", |ui| {
+            if ui.button("Point Reflection").clicked() {
+                self.reflection_backend = 0;
+            }
+            if ui.button("Line Reflection").clicked() {
+                self.reflection_backend = 1;
+            }
+        });
+
+        ui.separator();
+
+        ui.checkbox(&mut self.drag_mode,"Enable Moving Points").on_hover_text("Move points with right click and drag.\nEnabling drag is experimental and disables history viewing.");
 
         reset_view
     }
